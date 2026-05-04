@@ -1,0 +1,23 @@
+{
+  "AAPL": {
+    "sig": "STRONG BUY"
+  },
+  "MSFT": {
+    "sig": "HOLD"
+  },
+  "RKLB": {
+    "sig": "STRONG BUY"
+  },
+  "HOOD": {
+    "sig": "STRONG BUY"
+  },
+  "CRWV": {
+    "sig": "HOLD"
+  },
+  "META": {
+    "sig": "HOLD"
+  },
+  "ORCL": {
+    "sig": "STRONG BUY"
+  }
+}

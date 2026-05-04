@@ -1,0 +1,4 @@
+{
+  "AAPL": {"entry_price": 175.5, "qty": 10},
+  "TSLA": {"entry_price": 160.0, "qty": 5}
+}

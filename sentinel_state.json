@@ -1,0 +1,10 @@
+{
+  "AAPL": {
+    "high_watermark": 280.15,
+    "last_alert": null
+  },
+  "TSLA": {
+    "high_watermark": 390.66,
+    "last_alert": null
+  }
+}

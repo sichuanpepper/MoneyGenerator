@@ -1,0 +1,66 @@
+{
+  "AAPL": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "MSFT": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "NVDA": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "RKLB": {
+    "signal": "STRONG BUY",
+    "position": 80
+  },
+  "HOOD": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "CRWV": {
+    "signal": "WEAK SELL",
+    "position": 20
+  },
+  "UNH": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "CRCL": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "UAL": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "GOOG": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "TSLA": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "AMZN": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "META": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "MU": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "ORCL": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "AVGO": {
+    "signal": "HOLD",
+    "position": 40
+  }
+}

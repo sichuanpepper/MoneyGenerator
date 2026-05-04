@@ -1,0 +1,50 @@
+{
+  "AAPL": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - AAPL\n\nPrice: 272.57\nSMA50: 260.22\nSMA200: 253.04\nRSI: 66.1\n\nSignals:\n- \ud83d\udfe2 \u957f\u671f\u591a\u5934\u8d8b\u52bf\uff08\u4ef7\u683c\u5728200\u65e5\u7ebf\u4e0a\u65b9 + \u5747\u7ebf\u5411\u4e0a\uff09\n- \ud83d\udea7 \u63a5\u8fd1\u538b\u529b\u4f4d"
+  },
+  "MSFT": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - MSFT\n\nPrice: 415.21\nSMA50: 393.55\nSMA200: 469.03\nRSI: 71.8\n\nSignals:\n- \ud83d\udd34 \u8dcc\u7834200\u65e5\u7ebf\uff08\u957f\u671f\u98ce\u9669\u589e\u52a0\uff09\n- \ud83d\udd25 RSI\u8d85\u4e70 (71.8)"
+  },
+  "NVDA": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - NVDA\n\nPrice: 199.39\nSMA50: 184.65\nSMA200: 182.60\nRSI: 82.7\n\nSignals:\n- \ud83d\udfe2 \u957f\u671f\u591a\u5934\u8d8b\u52bf\uff08\u4ef7\u683c\u5728200\u65e5\u7ebf\u4e0a\u65b9 + \u5747\u7ebf\u5411\u4e0a\uff09\n- \ud83d\udd25 RSI\u8d85\u4e70 (82.7)"
+  },
+  "RKLB": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - RKLB\n\nPrice: 83.43\nSMA50: 71.36\nSMA200: 60.96\nRSI: 68.7\n\nSignals:\n- \ud83d\udfe2 \u957f\u671f\u591a\u5934\u8d8b\u52bf\uff08\u4ef7\u683c\u5728200\u65e5\u7ebf\u4e0a\u65b9 + \u5747\u7ebf\u5411\u4e0a\uff09"
+  },
+  "HOOD": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - HOOD\n\nPrice: 83.56\nSMA50: 75.98\nSMA200: 107.21\nRSI: 68.1\n\nSignals:\n- \ud83d\udd34 \u8dcc\u7834200\u65e5\u7ebf\uff08\u957f\u671f\u98ce\u9669\u589e\u52a0\uff09"
+  },
+  "CRWV": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - CRWV\n\nPrice: 118.79\nSMA50: 90.60\nSMA200: 101.18\nRSI: 82.3\n\nSignals:\n- \u26a0\ufe0f 200\u65e5\u5747\u7ebf\u8d70\u5f31\uff08\u8d8b\u52bf\u53ef\u80fd\u8f6c\u53d8\uff09\n- \ud83d\udd25 RSI\u8d85\u4e70 (82.3)"
+  },
+  "UNH": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - UNH\n\nPrice: 353.14\nSMA50: 291.22\nSMA200: 309.78\nRSI: 93.2\n\nSignals:\n- \ud83d\udfe2 \u957f\u671f\u591a\u5934\u8d8b\u52bf\uff08\u4ef7\u683c\u5728200\u65e5\u7ebf\u4e0a\u65b9 + \u5747\u7ebf\u5411\u4e0a\uff09\n- \ud83d\udd25 RSI\u8d85\u4e70 (93.2)\n- \ud83d\udea7 \u63a5\u8fd1\u538b\u529b\u4f4d"
+  },
+  "CRCL": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - CRCL\n\nPrice: 99.43\nSMA50: 96.00\nSMA200: 112.52\nRSI: 57.5\n\nSignals:\n- \ud83d\udd34 \u8dcc\u7834200\u65e5\u7ebf\uff08\u957f\u671f\u98ce\u9669\u589e\u52a0\uff09"
+  },
+  "UAL": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - UAL\n\nPrice: 90.37\nSMA50: 98.07\nSMA200: 100.64\nRSI: 47.6\n\nSignals:\n- \ud83d\udd34 \u8dcc\u7834200\u65e5\u7ebf\uff08\u957f\u671f\u98ce\u9669\u589e\u52a0\uff09"
+  },
+  "GOOG": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - GOOG\n\nPrice: 336.96\nSMA50: 307.86\nSMA200: 275.70\nRSI: 81.9\n\nSignals:\n- \ud83d\udfe2 \u957f\u671f\u591a\u5934\u8d8b\u52bf\uff08\u4ef7\u683c\u5728200\u65e5\u7ebf\u4e0a\u65b9 + \u5747\u7ebf\u5411\u4e0a\uff09\n- \ud83d\udd25 RSI\u8d85\u4e70 (81.9)\n- \ud83d\udea7 \u63a5\u8fd1\u538b\u529b\u4f4d"
+  },
+  "TSLA": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - TSLA\n\nPrice: 373.01\nSMA50: 388.10\nSMA200: 400.45\nRSI: 55.6\n\nSignals:\n- \ud83d\udd34 \u8dcc\u7834200\u65e5\u7ebf\uff08\u957f\u671f\u98ce\u9669\u589e\u52a0\uff09"
+  },
+  "AMZN": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - AMZN\n\nPrice: 254.82\nSMA50: 217.44\nSMA200: 226.20\nRSI: 93.6\n\nSignals:\n- \ud83d\udfe2 \u957f\u671f\u591a\u5934\u8d8b\u52bf\uff08\u4ef7\u683c\u5728200\u65e5\u7ebf\u4e0a\u65b9 + \u5747\u7ebf\u5411\u4e0a\uff09\n- \ud83d\udd25 RSI\u8d85\u4e70 (93.6)\n- \ud83d\udea7 \u63a5\u8fd1\u538b\u529b\u4f4d"
+  },
+  "META": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - META\n\nPrice: 658.52\nSMA50: 629.47\nSMA200: 679.30\nRSI: 76.5\n\nSignals:\n- \ud83d\udd34 \u8dcc\u7834200\u65e5\u7ebf\uff08\u957f\u671f\u98ce\u9669\u589e\u52a0\uff09\n- \ud83d\udd25 RSI\u8d85\u4e70 (76.5)"
+  },
+  "MU": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - MU\n\nPrice: 483.23\nSMA50: 413.00\nSMA200: 264.97\nRSI: 85.6\n\nSignals:\n- \ud83d\udfe2 \u957f\u671f\u591a\u5934\u8d8b\u52bf\uff08\u4ef7\u683c\u5728200\u65e5\u7ebf\u4e0a\u65b9 + \u5747\u7ebf\u5411\u4e0a\uff09\n- \ud83d\udd25 RSI\u8d85\u4e70 (85.6)"
+  },
+  "ORCL": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - ORCL\n\nPrice: 176.16\nSMA50: 153.69\nSMA200: 213.04\nRSI: 69.8\n\nSignals:\n- \ud83d\udd34 \u8dcc\u7834200\u65e5\u7ebf\uff08\u957f\u671f\u98ce\u9669\u589e\u52a0\uff09"
+  },
+  "AVGO": {
+    "last_msg": "\n\ud83d\udcca LONG-TERM SIGNAL - AVGO\n\nPrice: 421.85\nSMA50: 339.43\nSMA200: 334.87\nRSI: 93.6\n\nSignals:\n- \ud83d\udfe2 \u957f\u671f\u591a\u5934\u8d8b\u52bf\uff08\u4ef7\u683c\u5728200\u65e5\u7ebf\u4e0a\u65b9 + \u5747\u7ebf\u5411\u4e0a\uff09\n- \ud83d\udd25 RSI\u8d85\u4e70 (93.6)\n- \ud83d\udea7 \u63a5\u8fd1\u538b\u529b\u4f4d"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "HOOD": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "CRWV": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "UNH": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "CRCL": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "UAL": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "GOOG": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "TSLA": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "AMZN": {
+    "signal": "WEAK SELL",
+    "position": 20
+  },
+  "META": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "MU": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "ORCL": {
+    "signal": "WEAK SELL",
+    "position": 20
+  },
+  "AVGO": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "AAPL": {
+    "signal": "WEAK SELL",
+    "position": 20
+  },
+  "MSFT": {
+    "signal": "HOLD",
+    "position": 40
+  },
+  "NVDA": {
+    "signal": "WEAK SELL",
+    "position": 20
+  },
+  "RKLB": {
+    "signal": "HOLD",
+    "position": 40
+  }
+}

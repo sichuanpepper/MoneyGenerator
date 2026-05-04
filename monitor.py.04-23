@@ -1,0 +1,218 @@
+import yfinance as yf
+import requests
+import os
+import json
+import time
+from datetime import datetime
+from dotenv import load_dotenv
+import pytz
+
+# =========================
+# 初始化
+# =========================
+load_dotenv()
+
+WEBHOOK_URL = os.getenv("SLACK_WEBHOOK")
+
+STATE_FILE = "state_longterm.json"
+WATCHLIST_FILE = "watchlist.json"
+
+EASTERN = pytz.timezone("US/Eastern")
+
+def safe_float(x):
+    return float(x.values[0]) if hasattr(x, "values") else float(x)
+
+
+# =========================
+# Watchlist
+# =========================
+def load_symbols():
+    if os.path.exists(WATCHLIST_FILE):
+        with open(WATCHLIST_FILE) as f:
+            return json.load(f).get("symbols", [])
+    return []
+
+
+# =========================
+# Slack
+# =========================
+def send_slack(msg):
+    if not WEBHOOK_URL:
+        print("❌ Missing Slack Webhook")
+        return
+    requests.post(WEBHOOK_URL, json={"text": msg})
+
+
+# =========================
+# 状态管理
+# =========================
+def load_state():
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def save_state(state):
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f, indent=2)
+
+
+# =========================
+# RSI
+# =========================
+def rsi(series, period=14):
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+
+    avg_gain = gain.rolling(period).mean()
+    avg_loss = loss.rolling(period).mean()
+
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
+# =========================
+# Long-term Signal Engine
+# =========================
+def check(symbol, state):
+
+    data = yf.download(symbol, period="1y", interval="1d")
+
+    if data.empty or len(data) < 210:
+        print(f"{symbol}: not enough data")
+        return
+
+    # ===== indicators =====
+    data["SMA50"] = data["Close"].rolling(50).mean()
+    data["SMA200"] = data["Close"].rolling(200).mean()
+    data["RSI"] = rsi(data["Close"])
+
+    data = data.dropna()
+
+    latest = data.iloc[-1]
+    prev = data.iloc[-2]
+
+    price = float(latest["Close"].iloc[0])
+    sma50 = float(latest["SMA50"].iloc[0])
+    sma200 = float(latest["SMA200"].iloc[0])
+    rsi_val = float(latest["RSI"].iloc[0])
+
+    prev_sma50 = float(prev["SMA50"].iloc[0])
+    prev_sma200 = float(prev["SMA200"].iloc[0])
+
+    messages = []
+
+    # =========================
+    # 🧠 200日趋势
+    # =========================
+    sma200_up = sma200 > prev_sma200
+
+    if price > sma200 and sma200_up:
+        messages.append("🟢 长期多头趋势（价格在200日线上方 + 均线向上）")
+
+    elif price < sma200:
+        messages.append("🔴 跌破200日线（长期风险增加）")
+
+    elif not sma200_up:
+        messages.append("⚠️ 200日均线走弱（趋势可能转变）")
+
+    # =========================
+    # 🟡 50日回踩
+    # =========================
+    if price > sma200:
+        if abs(price - sma50) / sma50 < 0.02:
+            messages.append("🟡 回踩50日线（潜在加仓区）")
+
+    # =========================
+    # 🔁 金叉 / 死叉
+    # =========================
+    prev_cross = prev_sma50 > prev_sma200
+    curr_cross = sma50 > sma200
+
+    if not prev_cross and curr_cross:
+        messages.append("✨ 金叉（长期趋势转多）")
+
+    elif prev_cross and not curr_cross:
+        messages.append("💀 死叉（长期趋势转弱）")
+
+    # =========================
+    # 🔥 RSI
+    # =========================
+    if rsi_val > 70:
+        messages.append(f"🔥 RSI超买 ({rsi_val:.1f})")
+
+    elif rsi_val < 30:
+        messages.append(f"❄️ RSI超卖 ({rsi_val:.1f})")
+
+    # =========================
+    # 📉 支撑 & 压力
+    # =========================
+    support = safe_float(data["Low"].rolling(20).min().iloc[-1])
+    resistance = safe_float(data["High"].rolling(20).max().iloc[-1])
+
+    if abs(price - support) / price < 0.02:
+        messages.append("🧱 接近支撑位")
+
+    if abs(price - resistance) / price < 0.02:
+        messages.append("🚧 接近压力位")
+
+    # =========================
+    # 🚨 Slack 去重
+    # =========================
+    prev_msg = state.get(symbol, {}).get("last_msg")
+
+    if messages:
+
+        msg = f"""
+📊 LONG-TERM SIGNAL - {symbol}
+
+Price: {price:.2f}
+SMA50: {sma50:.2f}
+SMA200: {sma200:.2f}
+RSI: {rsi_val:.1f}
+
+Signals:
+- """ + "\n- ".join(messages)
+
+        if msg != prev_msg:
+            send_slack(msg)
+            state[symbol] = {"last_msg": msg}
+
+    else:
+        print(f"{symbol}: no signal")
+
+
+# =========================
+# 主循环
+# =========================
+def run():
+
+    state = load_state()
+
+    send_slack("🚀 Long-term Signal System Started")
+
+    while True:
+
+        symbols = load_symbols()
+
+        if not symbols:
+            print("No symbols in watchlist")
+            time.sleep(60)
+            continue
+
+        print("⏱ Running long-term scan...")
+
+        for symbol in symbols:
+            check(symbol, state)
+
+        save_state(state)
+
+        # 👉 long-term 不需要5分钟级别
+        time.sleep(3600)
+
+
+if __name__ == "__main__":
+    run()
+

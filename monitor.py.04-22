@@ -1,0 +1,208 @@
+import yfinance as yf
+import requests
+import os
+import json
+import time
+from datetime import datetime
+from dotenv import load_dotenv
+import pytz
+
+# =========================
+# 初始化
+# =========================
+load_dotenv()
+
+#SYMBOLS = ["AAPL", "MSFT", "NVDA"]
+WEBHOOK_URL = os.getenv("SLACK_WEBHOOK")
+
+STATE_FILE = "state_intraday.json"
+EASTERN = pytz.timezone("US/Eastern")
+
+def load_symbols():
+    if os.path.exists("watchlist.json"):
+        with open("watchlist.json") as f:
+            return json.load(f)["symbols"]
+    return []
+
+# =========================
+# Slack
+# =========================
+def send_slack(msg):
+    if not WEBHOOK_URL:
+        print("❌ Missing Slack Webhook")
+        return
+    requests.post(WEBHOOK_URL, json={"text": msg})
+
+
+# =========================
+# 状态管理
+# =========================
+def load_state():
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def save_state(state):
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+# =========================
+# RSI
+# =========================
+def rsi(series, period=14):
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+
+    avg_gain = gain.rolling(period).mean()
+    avg_loss = loss.rolling(period).mean()
+
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
+# =========================
+# 是否开盘
+# =========================
+def is_market_open():
+    now = datetime.now(EASTERN)
+
+    if now.weekday() >= 5:
+        return False
+
+    minutes = now.hour * 60 + now.minute
+    return 9*60+30 <= minutes <= 16*60
+
+
+# =========================
+# 信号引擎
+# =========================
+def generate_signal(price, ma20, ma50, rsi_val):
+
+    reasons = []
+    strength = 0
+
+    # 趋势
+    if ma20 > ma50:
+        strength += 1
+        reasons.append("MA20 > MA50 (bullish trend)")
+    else:
+        strength -= 1
+        reasons.append("MA20 < MA50 (bearish trend)")
+
+    # RSI
+    if 40 <= rsi_val <= 60:
+        strength += 1
+        reasons.append("RSI neutral zone")
+    elif rsi_val > 70:
+        strength -= 2
+        reasons.append("RSI overbought")
+    elif rsi_val < 30:
+        strength += 1
+        reasons.append("RSI oversold")
+
+    # price position
+    if price > ma20:
+        strength += 1
+        reasons.append("Price above MA20")
+    else:
+        strength -= 1
+        reasons.append("Price below MA20")
+
+    # decision
+    if strength >= 2:
+        return "BUY", reasons, strength
+    elif strength <= -2:
+        return "SELL", reasons, strength
+    else:
+        return "HOLD", reasons, strength
+
+
+# =========================
+# 核心逻辑
+# =========================
+def check(symbol, state):
+
+    data = yf.download(symbol, period="5d", interval="5m")
+
+    if data.empty:
+        return
+
+    data["MA20"] = data["Close"].rolling(20).mean()
+    data["MA50"] = data["Close"].rolling(50).mean()
+    data["RSI"] = rsi(data["Close"])
+
+    data = data.dropna()
+
+    latest = data.iloc[-1]
+
+    price = float(latest["Close"].iloc[0])
+    ma20 = float(latest["MA20"].iloc[0])
+    ma50 = float(latest["MA50"].iloc[0])
+    rsi_val = float(latest["RSI"].iloc[0])
+
+    signal, reasons, strength = generate_signal(price, ma20, ma50, rsi_val)
+
+    prev = state.get(symbol, {})
+    prev_signal = prev.get("signal")
+
+    # =========================
+    # 去重 + 只在变化时通知
+    # =========================
+    if signal != "HOLD" and signal != prev_signal:
+
+        emoji = "🟢" if signal == "BUY" else "🔴"
+
+        msg = f"""
+{emoji} {signal} SIGNAL - {symbol}
+
+Price: {price:.2f}
+MA20: {ma20:.2f}
+MA50: {ma50:.2f}
+RSI: {rsi_val:.1f}
+Strength: {strength}
+
+Reasons:
+- """ + "\n- ".join(reasons)
+
+        send_slack(msg)
+
+        state[symbol] = {"signal": signal}
+
+    else:
+        print(f"{symbol}: {signal}")
+
+
+# =========================
+# 主循环
+# =========================
+def run():
+
+    state = load_state()
+
+    print("WEBHOOK:", "OK" if WEBHOOK_URL else "MISSING")
+
+    send_slack("🚀 Trading Signal Monitor Started")
+
+    while True:
+
+        if is_market_open():
+            print("⏱ Running...")
+            symbols = load_symbols()
+
+            for symbol in symbols:
+                check(symbol, state)
+
+            save_state(state)
+
+        else:
+            print("🛑 Market closed")
+
+        time.sleep(300)  # 5 min
+
+
+if __name__ == "__main__":
+    run()

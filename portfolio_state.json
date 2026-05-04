@@ -1,0 +1,17 @@
+{
+  "TSLA": {
+    "signal": "HOLD"
+  },
+  "NVDA": {
+    "signal": "BUY CALL"
+  },
+  "AMD": {
+    "signal": "CALL SPREAD"
+  },
+  "CRCL": {
+    "signal": "HOLD"
+  },
+  "RKLB": {
+    "signal": "BUY CALL"
+  }
+}
