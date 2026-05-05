@@ -7,94 +7,55 @@ from datetime import datetime
 import pytz
 from dotenv import load_dotenv
 import pandas as pd
+from ai_auditor import AIAuditor  # 确保此文件在同一目录下
 
 # =========================
-# Init
+# 1. 初始化配置
 # =========================
 load_dotenv()
 WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_STOCK")
-STATE_FILE = "state_v3.json"
+STATE_FILE = "stock_state.json"
 WATCHLIST_FILE = "watchlist_stock.json"
+EASTERN = pytz.timezone("US/Eastern")
+
+auditor = AIAuditor()
 
 # =========================
-# AI Engine
-# =========================
-def llama3_audit(symbol, market, short_data, long_data, final_signal):
-    """
-    Llama3 Audit with standardized English tags.
-    """
-    vol_ratio = short_data.get('vol_ratio', 1.0)
-    
-    # 强化后的英文 Prompt
-    prompt = f"""
-    [System: Financial Risk Auditor]
-    Analyze the following trade setup for {symbol}:
-    - Market Context: {market}
-    - Signal: {final_signal}
-    - Technicals: RSI={short_data.get('rsi')}, Volume Ratio={vol_ratio}x
-    - Short-Term Logic: {short_data.get('reasons')}
-    - Long-Term Trend: {long_data.get('signal')}
-
-    Instructions:
-    1. Start your response with one exact tag: [Strongly Agree], [Agree], [Disagree], or [Strongly Disagree].
-    2. Provide a 1-2 sentence concise justification.
-    3. Be skeptical. Check if Volume Ratio supports the price move and if RSI is at extremes.
-    """
-    
-    try:
-        res = requests.post(
-            "http://localhost:11434/api/generate",
-            json={
-                "model": "llama3",
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.1,  # 进一步降低随机性，确保审计结果的一致性
-                    "num_predict": 100    # 限制输出长度，保持简洁
-                }
-            },
-            timeout=60
-        )
-        return res.json().get("response", "N/A")
-    except Exception as e:
-        return f"Llama3 Audit Error: {str(e)}"
-
-# =========================
-# Utils & JSON Fix
+# 2. 工具函数
 # =========================
 def send_slack(msg):
     if WEBHOOK_URL:
         try:
+            print(f"📡 Sending Slack Alert...")
             requests.post(WEBHOOK_URL, json={"text": msg}, timeout=5)
         except:
-            print("Slack notify error")
+            print("❌ Slack notify error")
 
-def load_state():
-    if os.path.exists(STATE_FILE) and os.path.getsize(STATE_FILE) > 0:
+def load_json(path, key=None):
+    if os.path.exists(path) and os.path.getsize(path) > 0:
         try:
-            with open(STATE_FILE, "r") as f: return json.load(f)
-        except: return {}
-    return {}
+            with open(path, "r") as f:
+                data = json.load(f)
+                return data.get(key, []) if key else data
+        except: return [] if key else {}
+    return [] if key else {}
 
-def save_state(state):
-    with open(STATE_FILE, "w") as f:
-        json.dump(state, f, indent=2)
-
-def load_symbols():
-    if os.path.exists(WATCHLIST_FILE) and os.path.getsize(WATCHLIST_FILE) > 0:
-        try:
-            with open(WATCHLIST_FILE, "r") as f:
-                return json.load(f).get("symbols", [])
-        except: return []
-    return []
+def save_json(path, data):
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
 
 def fmt(x, d=2):
-    """通用格式化，兼容 Series 和 Scalar"""
-    val = x.iloc[0] if hasattr(x, "iloc") else x
+    """消除 FutureWarning 的数值转换"""
+    if hasattr(x, "values"):
+        val = x.values[-1] if len(x) > 0 else 0
+    elif hasattr(x, "iloc"):
+        val = x.iloc[-1]
+    else:
+        val = x
     return round(float(val), d)
 
 # =========================
-# Indicators
+# 3. 核心指标计算 (修复缺失定义)
 # =========================
 def rsi_calc(series, period=14):
     delta = series.diff()
@@ -106,27 +67,25 @@ def rsi_calc(series, period=14):
     return 100 - (100 / (1 + rs))
 
 def get_market():
+    """判断大盘趋势 (SPY)"""
     data = yf.download("SPY", period="1y", interval="1d", progress=False)
     if data.empty or len(data) < 200: return "UNKNOWN"
     
     close = data["Close"].squeeze()
-    data["SMA50"] = close.rolling(50).mean()
-    data["SMA200"] = close.rolling(200).mean()
+    sma50 = close.rolling(50).mean()
+    sma200 = close.rolling(200).mean()
     
-    last = data.iloc[-1]
-    prev = data.iloc[-2]
-
-    p = float(last["Close"].iloc[0]) if hasattr(last["Close"], "iloc") else float(last["Close"])
-    s50 = float(last["SMA50"].iloc[0]) if hasattr(last["SMA50"], "iloc") else float(last["SMA50"])
-    s200 = float(last["SMA200"].iloc[0]) if hasattr(last["SMA200"], "iloc") else float(last["SMA200"])
-    ps200 = float(prev["SMA200"].iloc[0]) if hasattr(prev["SMA200"], "iloc") else float(prev["SMA200"])
+    p = fmt(close)
+    s50 = fmt(sma50)
+    s200 = fmt(sma200)
+    ps200 = fmt(sma200.shift(1)) # 前一天的 SMA200
 
     if p > s200 and s50 > s200 and s200 > ps200: return "BULL"
     if p < s200 and s50 < s200: return "BEAR"
     return "NEUTRAL"
 
 # =========================
-# Strategies
+# 4. 策略逻辑
 # =========================
 def long_term(symbol):
     data = yf.download(symbol, period="1y", interval="1d", progress=False)
@@ -135,9 +94,8 @@ def long_term(symbol):
     close = data["Close"].squeeze()
     s50 = close.rolling(50).mean()
     s200 = close.rolling(200).mean()
-    last = data.iloc[-1]
 
-    p, v50, v200 = fmt(last["Close"]), fmt(s50.iloc[-1]), fmt(s200.iloc[-1])
+    p, v50, v200 = fmt(close), fmt(s50), fmt(s200)
     sig = "BULLISH" if p > v200 and v50 > v200 else ("BEARISH" if p < v200 else "NEUTRAL")
     return sig, {"price": p, "sma50": v50, "sma200": v200, "signal": sig}
 
@@ -152,26 +110,24 @@ def short_term(symbol):
     m50 = close.rolling(50).mean()
     r_val = rsi_calc(close)
     
-    # 获取成交量异动：当前 vs 过去20个周期均值
-    curr_vol = float(volume.iloc[-1])
-    avg_vol = float(volume.iloc[-21:-1].mean()) # 不含最后一根
+    # 成交量计算
+    curr_vol = float(volume.values[-1])
+    avg_vol = float(volume.iloc[-21:-1].mean())
     vol_ratio = round(curr_vol / avg_vol, 2) if avg_vol > 0 else 1.0
 
-    last = data.dropna().iloc[-1]
-    p, v20, v50, rv = fmt(last["Close"]), fmt(m20.iloc[-1]), fmt(m50.iloc[-1]), fmt(r_val.iloc[-1], 1)
+    p, v20, v50, rv = fmt(close), fmt(m20), fmt(m50), fmt(r_val, 1)
 
     score = 0
     reasons = []
     if v20 > v50: score += 1; reasons.append("MA20 > MA50")
     else: score -= 1; reasons.append("MA20 < MA50")
     
-    if p > v20: score += 1; reasons.append("Price above MA20")
-    else: score -= 1; reasons.append("Price below MA20")
+    if p > v20: score += 1; reasons.append("Price > MA20")
+    else: score -= 1; reasons.append("Price < MA20")
 
-    if rv < 35: score += 1; reasons.append("RSI oversold")
-    elif rv > 70: score -= 2; reasons.append("RSI overbought")
+    if rv < 35: score += 1; reasons.append("RSI Oversold")
+    elif rv > 70: score -= 2; reasons.append("RSI Overbought")
     
-    # 逻辑加分：放量上涨或缩量回调
     if vol_ratio > 2.0: reasons.append(f"Volume Surge ({vol_ratio}x)")
 
     ind = {"price": p, "ma20": v20, "ma50": v50, "rsi": rv, "vol_ratio": vol_ratio, "reasons": reasons}
@@ -195,16 +151,17 @@ def position(signal, market):
     return maps.get(market, {"BUY": 40, "HOLD": 30, "SELL": 20}).get(signal, 30)
 
 # =========================
-# Main
+# 5. 主循环
 # =========================
 def run():
-    state = load_state()
-    EASTERN = pytz.timezone("US/Eastern")
-    send_slack("🚀 STOCK MONITOR V3.3 (VOLUME ENABLED) STARTED")
+    state = load_json(STATE_FILE)
+    start_msg = "🚀 STOCK MONITOR V3.3 (HYBRID AI ENABLED) STARTED"
+    print(start_msg)
+    send_slack(start_msg)
 
     while True:
         try:
-            symbols = load_symbols()
+            symbols = load_json(WATCHLIST_FILE, key="symbols")
             market = get_market()
             now = datetime.now(EASTERN).strftime("%Y-%m-%d %H:%M:%S ET")
 
@@ -219,44 +176,45 @@ def run():
                 prev = state.get(s, {})
 
                 if prev.get("signal") != final:
-                    # 🤖 AI Audit (现在包含 vol_ratio)
-                    ai_audit = llama3_audit(s, market, short_ind, long_ind, final)
+                    # 准备审计数据
+                    audit_payload = {
+                        "symbol": s,
+                        "market": market,
+                        "final_signal": final,
+                        "rsi": short_ind.get('rsi'),
+                        "vol_ratio": short_ind.get('vol_ratio'),
+                        "reasons": short_ind.get('reasons'),
+                        "long_sig": long_sig
+                    }
 
-                    # 格式化输出，加入成交量分析
+                    print(f"🤖 Auditing {s}...")
+                    llama_res = auditor.audit('llama3', 'stock', audit_payload)
+                    gemini_res = auditor.audit('gemini', 'stock', audit_payload)
+
                     vol_icon = "🔥" if short_ind['vol_ratio'] > 2.0 else ""
                     msg = f"""
-📊 {s}   |   ⏰ {now}
-
+📊 *{s}* | ⏰ {now}
 🌎 Market: {market}
 
-📉 Short-Term
-- Signal: {short_sig}
-- RSI: {short_ind.get('rsi')}
-- Volume: {short_ind.get('vol_ratio')}x {vol_icon}
-- MA20: {short_ind.get('ma20')}
-- MA50: {short_ind.get('ma50')}
-- Notes: {', '.join(short_ind.get('reasons', []))}
+📉 Short: {short_sig} | RSI: {short_ind.get('rsi')} | Vol: {short_ind.get('vol_ratio')}x {vol_icon}
+📈 Long: {long_sig} | Price: ${short_ind.get('price')}
 
-📈 Long-Term
-- Signal: {long_sig}
-- Price: {long_ind.get('price')}
-- SMA50: {long_ind.get('sma50')}
-- SMA200: {long_ind.get('sma200')}
+👉 FINAL: *{final}* | 💰 POS: {pos}%
 
-👉 FINAL: {final}
-💰 POSITION: {pos}%
+🤖 *Llama3 (Local)*:
+{llama_res}
 
-🤖 LLAMA3 AUDIT:
-{ai_audit}
+🌟 *Gemini (Cloud)*:
+{gemini_res}
 """
                     send_slack(msg)
                     print(msg)
                     state[s] = {"signal": final, "position": pos}
 
-            save_state(state)
-            time.sleep(300)
+            save_json(STATE_FILE, state)
+            time.sleep(300) # 每5分钟检查一次
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"❌ Main Loop Error: {e}")
             time.sleep(60)
 
 if __name__ == "__main__":

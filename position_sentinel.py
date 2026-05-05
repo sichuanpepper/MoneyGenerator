@@ -6,19 +6,35 @@ import requests
 import pytz
 from datetime import datetime
 from dotenv import load_dotenv
+from ai_auditor import AIAuditor 
 
-# =========================
-# 配置与初始化
-# =========================
+# ==========================================
+# 1. 初始化
+# ==========================================
 load_dotenv()
 WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_ALERTS")
 POSITIONS_FILE = "positions.json"
 SENTINEL_STATE = "sentinel_state.json"
 EASTERN = pytz.timezone("US/Eastern")
 
-# =========================
-# 核心逻辑
-# =========================
+auditor = AIAuditor()
+
+# ==========================================
+# 2. 通讯与工具
+# ==========================================
+def send_slack(msg):
+    if WEBHOOK_URL:
+        try: 
+            # 增加打印方便本地调试
+            print(f"尝试发送 Slack: {msg[:30]}...") 
+            res = requests.post(WEBHOOK_URL, json={"text": msg}, timeout=5)
+            if res.status_code != 200:
+                print(f"Slack 返回错误码: {res.status_code}")
+        except Exception as e: 
+            print(f"Slack 发送失败异常: {e}")
+    else:
+        print("警告: 未配置 SLACK_WEBHOOK_ALERTS")
+
 def load_json(path):
     if os.path.exists(path) and os.path.getsize(path) > 0:
         try:
@@ -29,109 +45,91 @@ def load_json(path):
 def save_json(path, data):
     with open(path, "w") as f: json.dump(data, f, indent=2)
 
-def send_slack(msg):
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Sending Slack notify...")
-    if WEBHOOK_URL:
-        try:
-            requests.post(WEBHOOK_URL, json={"text": msg}, timeout=5)
-        except:
-            print("Failed to send Slack notification.")
-
-# =========================
-# 心跳与 Greeting 逻辑
-# =========================
-def send_morning_greeting(positions, state):
-    """每天开盘前发送持仓简报"""
-    now_et = datetime.now(EASTERN)
-    # 检查是否为工作日 (0-4 是周一到周五)
-    if now_et.weekday() > 4:
-        return
-
-    summary = []
-    for s, info in positions.items():
-        hw = state.get(s, {}).get("high_watermark", "N/A")
-        summary.append(f"• *{s}*: Entry ${info['entry_price']} | Peak ${hw}")
-
-    pos_str = "\n".join(summary) if summary else "No active positions."
-    
-    greeting_msg = f"""
-☀️ *Good Morning! Market Sentinel is Online.*
-⏰ Time: {now_et.strftime('%Y-%m-%d %H:%M')} ET
-📈 *Current Portfolio Overview:*
-{pos_str}
-
-🚀 _System is ready. Monitoring minute-by-minute..._
-"""
-    send_slack(greeting_msg)
-
-# =========================
-# 主程序
-# =========================
+# ==========================================
+# 3. 主哨兵逻辑
+# ==========================================
 def run_sentinel():
-    print("🚨 POSITION SENTINEL V1.1 (WITH HEARTBEAT) STARTED")
+    # --- 修复点 1: 启动消息发送 ---
+    start_msg = "🚀 哨兵系统 V1.6 (Hybrid AI) 启动..."
+    print(start_msg)
+    send_slack(start_msg) # 显式调用发送函数
+    
     state = load_json(SENTINEL_STATE)
-    last_heartbeat_date = state.get("last_heartbeat_date", "")
-
+    
     while True:
         try:
             now_et = datetime.now(EASTERN)
             positions = load_json(POSITIONS_FILE)
             
-            # --- 心跳检查逻辑 (每天 09:25 ET 发送一次) ---
-            current_date_str = now_et.strftime("%Y-%m-%d")
-            if now_et.hour == 9 and now_et.minute == 25 and last_heartbeat_date != current_date_str:
-                send_morning_greeting(positions, state)
-                last_heartbeat_date = current_date_str
-                state["last_heartbeat_date"] = current_date_str
-                save_json(SENTINEL_STATE, state)
-
-            if not positions:
-                time.sleep(60)
-                continue
-
-            # --- 核心监控逻辑 ---
             for s, info in positions.items():
+                # 下载最近 2 天数据
                 df = yf.download(s, period="2d", interval="1m", progress=False)
                 if df.empty: continue
                 
-                curr_p = round(float(df["Close"].iloc[-1]), 2)
+                # --- 修复点 2: 消除 FutureWarning ---
+                # 使用 .values[-1] 获取纯 NumPy 数值，彻底避开 Series 转换警告
+                raw_close = df["Close"].values[-1]
+                curr_p = round(float(raw_close), 2)
+                
                 entry_p = info["entry_price"]
                 
-                # 更新最高价状态
-                if s not in state or isinstance(state[s], str): # 容错处理
-                    state[s] = {"high_watermark": curr_p, "last_alert": None}
+                # 状态维护
+                if s not in state: state[s] = {"high_watermark": curr_p, "last_alert": None}
                 
+                # 确保 high_watermark 存在且为有效数字
                 if curr_p > state[s].get("high_watermark", 0):
                     state[s]["high_watermark"] = curr_p
+                    state[s]["last_alert"] = None
                 
                 hw = state[s]["high_watermark"]
-                drawdown = (curr_p - hw) / hw
                 total_ret = (curr_p - entry_p) / entry_p
+                drawdown = (curr_p - hw) / hw
                 
+                # 预警逻辑
                 alert_type = None
-                if total_ret < -0.07:
-                    alert_type = "🚨 HARD STOP-LOSS"
-                elif total_ret > 0.10 and drawdown < -0.05:
-                    alert_type = "💰 TRAILING TAKE-PROFIT"
+                if total_ret < -0.07: 
+                    alert_type = "🚨 硬止损 (Entry -7%)"
+                elif total_ret > 0.10 and drawdown < -0.05: 
+                    alert_type = "💰 移动止盈 (Peak -5%)"
 
+                # 触发审计
                 if alert_type and state[s].get("last_alert") != alert_type:
-                    # 此处可插入之前写的 llama3_risk_audit 逻辑
-                    msg = f"⚠️ *{alert_type} TRIGGERED*\nStock: {s}\nPrice: ${curr_p}\nReturn: {total_ret:.1%}\nDrawdown: {drawdown:.1%}"
+                    audit_payload = {
+                        "symbol": s,
+                        "alert_type": alert_type,
+                        "price": curr_p,
+                        "ret": total_ret,
+                        "drawdown": drawdown
+                    }
+                    
+                    print(f"🤖 正在请求双 AI 审计 {s}...")
+                    llama_opinion = auditor.audit('llama3', 'sentinel', audit_payload)
+                    gemini_opinion = auditor.audit('gemini', 'sentinel', audit_payload)
+                    
+                    msg = f"""
+⚠️ *{alert_type}*
+*股票*: {s} | *现价*: ${curr_p}
+*盈亏*: {total_ret:+.1%} | *回撤*: {drawdown:.1%}
+
+---
+🤖 *Llama3 (Local)*: 
+{llama_opinion}
+
+🌟 *Gemini (Cloud)*: 
+{gemini_opinion}
+"""
                     send_slack(msg)
                     state[s]["last_alert"] = alert_type
 
             save_json(SENTINEL_STATE, state)
             
-            # 根据开盘时间动态调整睡眠频率
-            # 开盘时间 (9:30-16:00) 1分钟扫一次，其余时间 10分钟扫一次
-            if 9 <= now_et.hour <= 16:
-                time.sleep(180)
-            else:
-                time.sleep(3600) 
-                
+            # 自动调整频率
+            sleep_time = 60 if 9 <= now_et.hour <= 16 else 600
+            time.sleep(sleep_time)
+
         except Exception as e:
-            print(f"Sentinel Error: {e}")
-            time.sleep(60)
+            print(f"运行异常: {e}")
+            time.sleep(30)
 
 if __name__ == "__main__":
     run_sentinel()
