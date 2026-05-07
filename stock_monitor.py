@@ -190,6 +190,8 @@ def run():
                     print(f"🤖 Auditing {s}...")
                     llama_res = auditor.audit('llama3', 'stock', audit_payload)
                     gemini_res = auditor.audit('gemini', 'stock', audit_payload)
+                    openai_res = auditor.audit('openai', 'stock', audit_payload)
+                    claude_res = auditor.audit('claude', 'stock', audit_payload)
 
                     vol_icon = "🔥" if short_ind['vol_ratio'] > 2.0 else ""
                     msg = f"""
@@ -206,6 +208,12 @@ def run():
 
 🌟 *Gemini (Cloud)*:
 {gemini_res}
+
+🧠 *OpenAI (Cloud)*:
+{openai_res}
+
+❄️ *ClaudeAI (Cloud)*:
+{claude_res}
 """
                     send_slack(msg)
                     print(msg)

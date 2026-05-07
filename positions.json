@@ -1,4 +1,9 @@
 {
-  "AAPL": {"entry_price": 175.5, "qty": 10},
-  "TSLA": {"entry_price": 160.0, "qty": 5}
+  "AAPL": {"entry_price": 208.5, "qty": 100},
+  "GOOG": {"entry_price": 199.25, "qty": 100},
+  "MU": {"entry_price": 360, "qty": 100},
+  "TSM": {"entry_price": 210, "qty": 100},
+  "UHN": {"entry_price": 292, "qty": 100},
+  "UAL": {"entry_price": 90, "qty": 100},
+  "MSFT": {"entry_price": 418.0, "qty": 100}
 }

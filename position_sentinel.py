@@ -105,6 +105,8 @@ def run_sentinel():
                     print(f"🤖 正在请求双 AI 审计 {s}...")
                     llama_opinion = auditor.audit('llama3', 'sentinel', audit_payload)
                     gemini_opinion = auditor.audit('gemini', 'sentinel', audit_payload)
+                    openai_res = auditor.audit('openai', 'sentinel', audit_payload)
+                    claude_res = auditor.audit('claude', 'sentinel', audit_payload)
                     
                     msg = f"""
 ⚠️ *{alert_type}*
@@ -117,6 +119,12 @@ def run_sentinel():
 
 🌟 *Gemini (Cloud)*: 
 {gemini_opinion}
+
+🧠 *OpenAI (Cloud)*:
+{openai_res}
+
+❄️ *ClaudeAI (Cloud)*:
+{claude_res}
 """
                     send_slack(msg)
                     state[s]["last_alert"] = alert_type

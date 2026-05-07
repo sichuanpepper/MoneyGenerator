@@ -1,6 +1,8 @@
 import os
 import requests
 import google.generativeai as genai
+from openai import OpenAI
+from anthropic import Anthropic
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,6 +26,38 @@ class AIAuditor:
             self.gemini_model = None
             print("❌ 未检测到 GEMINI_API_KEY")
 
+     # --- OpenAI 初始化 ---
+        api_key_openai = os.getenv("OPENAI_API_KEY")
+        if api_key_openai:
+            try:
+                # 默认使用最新的 gpt-4o-mini，性价比最高且速度快
+                self.openai_client = OpenAI(api_key=api_key_openai)
+                print("✅ OpenAI Client (GPT-4o) 加载成功")
+            except Exception as e:
+                self.openai_client = None
+                print(f"❌ OpenAI 加载失败: {e}")
+        else:
+            self.openai_client = None
+            print("⚠️ 未检测到 OPENAI_API_KEY")       
+
+    # --- Claude (新增) ---
+        api_key_anthropic = os.getenv("ANTHROPIC_API_KEY")
+        if api_key_anthropic:
+            try:
+                self.claude_client = Anthropic(api_key=api_key_anthropic)
+                print("✅ Claude Client (Claude 3.5 Sonnet) 加载成功")
+            except Exception as e:
+                self.claude_client = None
+                print(f"❌ Claude 加载失败: {self._clean_err(e)}")
+        else:
+            self.claude_client = None   
+            print("⚠️ 未检测到 ANTHROPIC_API_KEY")   
+
+    def _clean_err(self, e):
+        """异常消息截断处理"""
+        err_str = str(e).replace('\n', ' ')
+        return (err_str[:297] + "...") if len(err_str) > 100 else err_str          
+
     def call_llama3(self, prompt, max_tokens=2000):
         try:
             res = requests.post(
@@ -32,23 +66,13 @@ class AIAuditor:
                     "model": "llama3",
                     "prompt": prompt,
                     "stream": False,
-                    "options": {"temperature": 0.1, "num_predict": max_tokens}
+                    "options": {"temperature": 0.1, "num_predict": 5000}
                 },
                 timeout=15
             )
             return res.json().get("response", "N/A")
         except Exception as e:
-            return f"Llama3 Error: {e}"            
-
-    def call_gemini(self, prompt):
-        """调用云端 Gemini"""
-        if not self.gemini_model:
-            return "Gemini API Key not configured."
-        try:
-            response = self.gemini_model.generate_content(prompt)
-            return response.text.strip()
-        except Exception as e:
-            return f"Gemini Error: {str(e)}"
+            return f"Llama3 Error: {self._clean_err(e)}"     
 
     def audit(self, engine, mode, data):
         # --- 关键修改：缩短 max_tokens 以强制精简输出 ---
@@ -73,7 +97,34 @@ class AIAuditor:
                 )
                 return response.text.strip()
             except Exception as e:
-                return f"Gemini Error: {e}"
+                return f"Gemini Error: {self._clean_err(e)}"
+        elif engine == 'openai':
+            if not self.openai_client: return "OpenAI not configured."
+            try:
+                response = self.openai_client.chat.completions.create(
+                    model="gpt-4o-mini", # 或者使用 "gpt-4o"
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=0.2
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as e:
+                return f"OpenAI Error: {self._clean_err(e)}"  
+        elif engine == 'claude':
+            if not self.claude_client: return "Claude not configured."
+            try:
+                # Claude 调用语法与 OpenAI 略有不同
+                response = self.claude_client.messages.create(
+                    model="claude-sonnet-4-6", # 推荐用 3.5 Sonnet，审计能力最强
+                    max_tokens=max_tokens,
+                    temperature=0.2,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                # Claude 返回的是 Content Block 列表
+                return response.content[0].text.strip()
+            except Exception as e:
+                return f"Claude Error: {self._clean_err(e)}"        
+
         
         return self.call_llama3(prompt, max_tokens)
 
@@ -88,10 +139,10 @@ class AIAuditor:
         - RSI: {d['rsi']} | Vol Ratio: {d['vol_ratio']}x
         - Reasons: {', '.join(d['reasons'])}
         
-        Requirements:
-        1. Start with ONE tag: [Strongly Disagree] | [Disagree] | [Neutral] | [Agree] | [Strongly Agree]
-        2. Follow with ONE concise sentence (max 50 words) explaining the primary risk or confirmation.
-        3. Do NOT provide bullet points or detailed technical descriptions.
+        Requirements (Strict Output Format):
+        1. [Result]: (Strongly Disagree / Disagree / Neutral / Agree / Strongly Agree)
+        2. [Action]: (Strong Buy 🟢 / Buy / Hold 🟡 / Weak Sell / Sell 🔴)
+        3. [Reason]: Two or three concise sentences focusing on why and risk or validation.
         """
 
     def _options_prompt(self, d):
@@ -108,10 +159,10 @@ class AIAuditor:
         - Technical Context: RSI={d['rsi']}, Vol={d['vol_ratio']}x
         
         Requirements:
-        1. Start with ONE tag: [High Confidence] | [Reasonable] | [Speculative] | [High Risk]
-        2. Follow with ONE concise sentence (max 50 words). 
-        3. Prioritize checking if the 'time to expiry' and 'volatility' justify the strategy.
-        4. No boilerplate text.
+        Requirements (Strict Output Format):
+        1. [Result]: (High Confidence/ Reasonable / Speculative / High Risk )
+        2. [Action]: (Strong Buy 🟢 / Buy / Hold 🟡 / Avoid ❌ / EXIT 🚨 / Take Profit 💰)
+        3. [Reason]: Two or three concise sentences focusing on why and IV/Theta. Prioritize checking if the 'time to expiry' and 'volatility' justify the strategy.
         """
 
     def _sentinel_prompt(self, d):
