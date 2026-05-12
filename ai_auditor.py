@@ -131,19 +131,26 @@ class AIAuditor:
     def _stock_prompt(self, d):
         return f"""
         [Role: Senior Quantitative Trader]
-        Task: Audit the following trade signal.
+        Task: Audit the following trade signal for {d['symbol']}.
         
         Data:
         - Symbol: {d['symbol']} | Market: {d['market']}
-        - Signal: {d['final_signal']}
+        - Signal: {d['final_signal']} | Market: {d['market']}
         - RSI: {d['rsi']} | Vol Ratio: {d['vol_ratio']}x
-        - Reasons: {', '.join(d['reasons'])}
+        - Analysis: {', '.join(d['reasons'])}
         
-        Requirements (Strict Output Format):
-        1. [Result]: (Strongly Disagree / Disagree / Neutral / Agree / Strongly Agree)
-        2. [Action]: (Strong Buy 🟢 / Buy / Hold 🟡 / Weak Sell / Sell 🔴)
-        3. [Reason]: Two or three concise sentences focusing on why and risk or validation.
-        """
+        Requirements:
+        1. [Result]: Select ONE (Strongly Disagree / Disagree / Neutral / Agree / Strongly Agree). 
+           - 'Agree' means you support the 'Signal' provided in Data.
+        2. [Action]: Select ONE (Strong Buy 🟢 / Buy / Hold 🟡 / Weak Sell / Sell 🔴).
+           - This is your own independent judgment.
+        3. [Reason]: Two concise sentences focusing on why and the primary risk (less than 200 characters).
+
+        Strict Output Format Example:
+        [Result] Agree
+        [Action] Buy
+        [Reason] RSI is trending up without overbought signals. High volume confirms the breakout strength.
+        """    
 
     def _options_prompt(self, d):
         # 针对期权策略（如 Call Spread, Long Call 等）的特定审计逻辑

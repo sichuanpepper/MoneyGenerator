@@ -150,12 +150,21 @@ def position(signal, market):
     }
     return maps.get(market, {"BUY": 40, "HOLD": 30, "SELL": 20}).get(signal, 30)
 
+def extract_audit_result(text):
+    """从 AI 回复中提取标准化结果"""
+    text = text.upper()
+    if "STRONGLY AGREE" in text or "AGREE" in text:
+        return "AGREE"
+    if "STRONGLY DISAGREE" in text or "DISAGREE" in text:
+        return "DISAGREE"
+    return "NEUTRAL"    
+
 # =========================
 # 5. 主循环
 # =========================
 def run():
     state = load_json(STATE_FILE)
-    start_msg = "🚀 STOCK MONITOR V3.3 (HYBRID AI ENABLED) STARTED"
+    start_msg = "🚀 STOCK MONITOR V3.4 (CASCADE AUDIT ENABLED) STARTED"
     print(start_msg)
     send_slack(start_msg)
 
@@ -168,62 +177,109 @@ def run():
             for s in symbols:
                 short_sig, short_ind = short_term(s)
                 long_sig, long_ind = long_term(s)
-                
-                if not short_ind or not long_ind: continue
+                if not short_ind or not long_ind:
+                    continue
 
-                final = fuse(short_sig, long_sig, market)
-                pos = position(final, market)
+                final_prog = fuse(short_sig, long_sig, market)
+                pos = position(final_prog, market)
                 prev = state.get(s, {})
+                prev_signal = prev.get("signal")
 
-                if prev.get("signal") != final:
-                    # 准备审计数据
-                    audit_payload = {
-                        "symbol": s,
-                        "market": market,
-                        "final_signal": final,
-                        "rsi": short_ind.get('rsi'),
-                        "vol_ratio": short_ind.get('vol_ratio'),
-                        "reasons": short_ind.get('reasons'),
-                        "long_sig": long_sig
-                    }
+                audit_payload = {
+                    "symbol": s, "market": market, "final_signal": final_prog,
+                    "rsi": short_ind.get('rsi'), "vol_ratio": short_ind.get('vol_ratio'),
+                    "reasons": short_ind.get('reasons'), "long_sig": long_sig
+                }
 
-                    print(f"🤖 Auditing {s}...")
-                    llama_res = auditor.audit('llama3', 'stock', audit_payload)
-                    gemini_res = auditor.audit('gemini', 'stock', audit_payload)
-                    openai_res = auditor.audit('openai', 'stock', audit_payload)
-                    claude_res = auditor.audit('claude', 'stock', audit_payload)
+                # ── 第一层：Llama3 本地审计 ──────────────────────────────────
+                llama_res = auditor.audit('llama3', 'stock', audit_payload)
+                l_status = extract_audit_result(llama_res)
+                llama_agree = (l_status == "AGREE")
+
+                # 条件：Llama3 同意 且 signal 未变 → 跳过
+                if llama_agree and (final_prog == prev_signal):
+                    print(f"✅ {s}: Llama3 agrees & signal unchanged, skipping.")
+                    continue
+
+                # ── 第二层：Cloud 审计（Gemini + OpenAI）────────────────────
+                print(f"☁️  {s}: Proceeding to cloud audit (Gemini & OpenAI)...")
+                gemini_res = auditor.audit('gemini', 'stock', audit_payload)
+                openai_res = auditor.audit('openai', 'stock', audit_payload)
+
+                g_status = extract_audit_result(gemini_res)
+                o_status = extract_audit_result(openai_res)
+
+                gemini_agree  = (g_status == "AGREE")
+                openai_agree  = (o_status == "AGREE")
+
+                if g_status == o_status:
+                    # Gemini 与 OpenAI 一致 → 直接采纳
+                    final_decision_signal = final_prog if gemini_agree else prev_signal
+                    decision_source = "Cloud Consensus (Gemini + OpenAI)"
+                    supporters = "🌟 Gemini + 🧠 OpenAI"
 
                     vol_icon = "🔥" if short_ind['vol_ratio'] > 2.0 else ""
                     msg = f"""
-📊 *{s}* | ⏰ {now}
-🌎 Market: {market}
+📊 *{s}* {vol_icon} | Logic: {decision_source}
+🌎 Market: {market} | ⏰ {now}
 
-📉 Short: {short_sig} | RSI: {short_ind.get('rsi')} | Vol: {short_ind.get('vol_ratio')}x {vol_icon}
-📈 Long: {long_sig} | Price: ${short_ind.get('price')}
+👉 TARGET: *{final_decision_signal}* (Prog: {final_prog})
+🤝 Supported by: {supporters}
 
-👉 FINAL: *{final}* | 💰 POS: {pos}%
-
-🤖 *Llama3 (Local)*:
-{llama_res}
-
-🌟 *Gemini (Cloud)*:
-{gemini_res}
-
-🧠 *OpenAI (Cloud)*:
-{openai_res}
-
-❄️ *ClaudeAI (Cloud)*:
-{claude_res}
+🤖 *Llama3*: {llama_res}
+🌟 *Gemini*: {gemini_res}
+🧠 *OpenAI*: {openai_res}
 """
                     send_slack(msg)
-                    print(msg)
-                    state[s] = {"signal": final, "position": pos}
+                    state[s] = {"signal": final_decision_signal, "position": pos}
+                    save_json(STATE_FILE, state)
+                    continue
+
+                # ── 第三层：终极仲裁（Claude）────────────────────────────────
+                print(f"⚖️  {s}: Gemini/OpenAI conflict, calling Claude for arbitration...")
+                claude_res = auditor.audit('claude', 'stock', audit_payload)
+                c_status = extract_audit_result(claude_res)
+                claude_agree = (c_status == "AGREE")
+
+                # Claude 结论永远为准，确定最终 signal
+                final_decision_signal = final_prog if claude_agree else prev_signal
+
+                # 统计哪些 AI 与 Claude 一致，用于 Slack 标注
+                supporters_list = ["❄️ Claude"]
+                if c_status == g_status:
+                    supporters_list.append("🌟 Gemini")
+                if c_status == o_status:
+                    supporters_list.append("🧠 OpenAI")
+
+                supporters = " + ".join(supporters_list)
+                if len(supporters_list) == 1:
+                    decision_source = "Claude Arbitration (sole)"
+                else:
+                    decision_source = f"Claude Arbitration ({' + '.join(supporters_list[1:])} aligned)"
+
+                vol_icon = "🔥" if short_ind['vol_ratio'] > 2.0 else ""
+                msg = f"""
+📊 *{s}* {vol_icon} | Logic: {decision_source}
+🌎 Market: {market} | ⏰ {now}
+
+👉 TARGET: *{final_decision_signal}* (Prog: {final_prog})
+🤝 Supported by: {supporters}
+
+🤖 *Llama3*: {llama_res}
+🌟 *Gemini*: {gemini_res}
+🧠 *OpenAI*: {openai_res}
+❄️ *Claude*: {claude_res}
+"""
+                send_slack(msg)
+                state[s] = {"signal": final_decision_signal, "position": pos}
+                save_json(STATE_FILE, state)
 
             save_json(STATE_FILE, state)
-            time.sleep(300) # 每5分钟检查一次
+            time.sleep(300)
+
         except Exception as e:
             print(f"❌ Main Loop Error: {e}")
             time.sleep(60)
-
+            
 if __name__ == "__main__":
     run()
